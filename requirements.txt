@@ -1,0 +1,8 @@
+flask[async]
+florestbotfunctions
+opencv-python
+numpy
+pyinstaller
+flask-limiter[async]
+aiosqlite
+mcstatus
