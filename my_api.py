@@ -11,6 +11,9 @@ try:
   import re
   import aiosqlite
   from mcstatus import JavaServer
+  from g4f.client import AsyncClient
+  from g4f.Provider.OIVSCodeSer2 import OIVSCodeSer2
+  from g4f.Provider.Together import Together
 except ImportError:
   os.system('pip install -r requirements.txt')
 
@@ -111,7 +114,7 @@ docs_data = {
             "description": "Получение последнего поста из группы ВКонтакте."
         },
         "/ai/text_gen": {
-            "method": "GET",
+            "method": "POST",
             "params": {
                 "prompt": "Текст запроса для AI (строка)",
                 "is_voice": "Вернуть аудио-ответ (true/false, по умолчанию false)"
@@ -119,7 +122,7 @@ docs_data = {
             "description": "Генерация текста через AI (с опцией голосового ответа)."
         },
         "/ai/img_gen": {
-            "method": "GET",
+            "method": "POST",
             "params": {
                 "prompt": "Описание изображения (строка)"
             },
@@ -260,6 +263,22 @@ docs_data = {
                 'app':".cpp в files. requests.post('url', files={'app':open('...', 'rb')})"
             },
             'description':'Из C++ в exe.'
+        },
+        '/ai/gpt_req': {
+            'method':"POST",
+            'params':{
+                'prompt':"Сам запрос (строка)",
+                'max_tokens':"Длина ответа (число). По умолчанию, 4096.",
+                'is_voice':"Голосовой ответ? По умолчанию, false."
+            },
+            'description':"В отличии от /ai/text_gen, юзаем бесплатный gpt-4o-mini."
+        },
+        '/ai/flux_req':{
+            'method':"POST",
+            'params':{
+                'prompt':'Запрос, по которому надо жестко зафигачить изображение (строка)'
+            },
+            'description':"Для генерации изображение юзается flux-pro, в отличии от /ai/img_gen."
         }
     }
 }
@@ -1440,6 +1459,37 @@ async def auto_cpp_to_exe():
                 except:
                     pass
                 return jsonify({"exe_in_base64":base64.b64encode(a).decode()})
+
+@app.route('/ai/gpt_req', methods=['POST'])
+async def gpt_req():
+    prompt = request.args.get('prompt')
+    is_voice = request.args.get('is_voice') == 'false'
+    max_tokens = request.args.get('max_tokens', '4096')
+    if not prompt:
+        return jsonify({'error':'prompt обязателен!'}), 400
+    else:
+        if not max_tokens.isdigit():
+            return jsonify({"error":"max_tokens должен быть числом."}), 400
+        r = await client.chat.completions.create([{"role":"user", "content":prompt}], 'gpt-4o-mini', provider, proxy='http://...', max_tokens=int(max_tokens))
+        if not is_voice:
+            return jsonify({"answer":r.choices[0].message.content})
+        else:
+            i = await functions.text_to_speech(r.choices[0].message.content)
+            return jsonify({"answer_in_base64":base64.b64encode(i).decode()})
+        
+@app.route('/ai/flux_req', methods=['POST'])
+async def ai_flux_req():
+    prompt = request.args.get('prompt')
+    if not prompt:
+        return jsonify({'error':'prompt обязателен!'}), 400
+    else:
+        r = await client.images.async_generate(prompt, 'flux-pro', Together, 'url', proxy='http://...')
+        urls = []
+        
+        for i in r.data:
+            await asyncio.to_thread(urls.append, i.url)
+            
+        return jsonify({"urls_of_images":urls})
 
 if __name__ == '__main__':
     app.run('0.0.0.0', 80)
