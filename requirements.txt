@@ -6,3 +6,6 @@ pyinstaller
 flask-limiter[async]
 aiosqlite
 mcstatus
+g4f
+curl_cffi
+aiohttp_socks
